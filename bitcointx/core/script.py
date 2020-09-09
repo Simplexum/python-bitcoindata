@@ -140,7 +140,7 @@ class ScriptBitcoinClassDispatcher(ScriptCoinClassDispatcher):
     ...
 
 
-class ScriptBitcoinClass(metaclass=ScriptBitcoinClassDispatcher):
+class ScriptBitcoinClass(ScriptCoinClass, metaclass=ScriptBitcoinClassDispatcher):
     ...
 
 
