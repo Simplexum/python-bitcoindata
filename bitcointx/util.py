@@ -563,7 +563,7 @@ else:
 
 class ContextLocalClassDispatchers(ContextVarsCompat):
 
-    _known_identities = ('core', 'wallet', 'script')
+    _known_identities = ('core', 'wallet', 'script', 'psbt')
 
     core: Type[ClassMappingDispatcher]
     wallet: Type[ClassMappingDispatcher]

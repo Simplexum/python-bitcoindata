@@ -68,9 +68,6 @@ class ChainParamsMeta(ABCMeta):
             if 'RPC_PORT' in dct and not isinstance(dct['RPC_PORT'], int):
                 raise TypeError(f'{cls_name}: RPC_PORT is not an int')
 
-            # Cannot check the type of WALLET_DISPATCHER without
-            # importing bitcointx.wallet, this check has to be done at runtime
-
             if name is not None:
                 if isinstance(name, str):
                     names = [name]
@@ -121,6 +118,11 @@ class ChainParamsBase(metaclass=ChainParamsMeta):
     WALLET_DISPATCHER: Union[
         Type['bitcointx.wallet.WalletCoinClassDispatcher'],
         Callable[[object], Type['bitcointx.wallet.WalletCoinClassDispatcher']]
+    ]
+    PSBT_DISPATCHER: Union[
+        Type['bitcointx.core.psbt.PSBT_CoinClassDispatcher'],
+        Callable[[object],
+                 Type['bitcointx.core.psbt.PSBT_CoinClassDispatcher']]
     ]
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -189,6 +191,12 @@ class BitcoinMainnetParams(ChainParamsBase,
         Type['bitcointx.wallet.WalletCoinClassDispatcher'],
         Callable[[object], Type['bitcointx.wallet.WalletCoinClassDispatcher']]
     ] = lambda _: bitcointx.wallet.WalletBitcoinClassDispatcher
+
+    PSBT_DISPATCHER: Union[
+        Type['bitcointx.core.psbt.PSBT_CoinClassDispatcher'],
+        Callable[[object],
+                 Type['bitcointx.core.psbt.PSBT_CoinClassDispatcher']]
+    ] = lambda _: bitcointx.core.psbt.PSBT_BitcoinClassDispatcher
 
 
 class BitcoinTestnetParams(BitcoinMainnetParams, name='bitcoin/testnet'):
@@ -281,19 +289,23 @@ def select_chain_params(params: Union[str, ChainParamsBase,
     prev_params = _chain_params_context.params
     _chain_params_context.params = params
 
-    # It might not be imported yet
     import bitcointx.wallet
+    import bitcointx.core.psbt
 
-    wd = params.WALLET_DISPATCHER
-    if isinstance(wd, types.MethodType):
-        wd_cls = wd()
-    else:
-        assert isinstance(wd, type)
-        wd_cls = wd
+    for disp_name in ('WALLET', 'PSBT'):
+        disp = getattr(params, f'{disp_name}_DISPATCHER', None)
+        if disp is None:
+            continue
 
-    assert issubclass(wd_cls, bitcointx.wallet.WalletCoinClassDispatcher)
+        if isinstance(disp, types.MethodType):
+            disp_cls = disp()
+        else:
+            assert isinstance(disp, type)
+            disp_cls = disp
 
-    bitcointx.util.activate_class_dispatcher(wd_cls)
+        assert issubclass(disp_cls, bitcointx.util.ClassMappingDispatcher)
+
+        bitcointx.util.activate_class_dispatcher(disp_cls)
 
     return prev_params, params
 

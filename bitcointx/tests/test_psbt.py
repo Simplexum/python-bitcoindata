@@ -21,7 +21,7 @@ from bitcointx import ChainParams
 from bitcointx.wallet import CCoinExtKey, CCoinExtPubKey, P2PKHCoinAddress
 from bitcointx.core import (
     x, lx, b2x, CTransaction, CTxOut, CMutableTxOut, CTxIn, COutPoint,
-    coins_to_satoshi
+    coins_to_satoshi, CoreCoinParams
 )
 from bitcointx.core.key import CPubKey, KeyStore, BIP32Path
 from bitcointx.core.script import (
@@ -34,8 +34,8 @@ from bitcointx.core.serialize import (
 )
 from bitcointx.core.psbt import (
     PartiallySignedTransaction, PSBT_KeyDerivationInfo,
-    PSBT_ProprietaryTypeData, PSBT_MAGIC_HEADER_BYTES,
-    read_psbt_keymap, PSBT_GlobalKeyType, PSBT_InKeyType
+    PSBT_ProprietaryTypeData, read_psbt_keymap,
+    PSBT_GlobalKeyType, PSBT_InKeyType
 )
 
 
@@ -47,7 +47,7 @@ class Test_PSBT(unittest.TestCase):
 
         # Network transaction, not PSBT format
         with self.assertRaisesRegex(SerializationError,
-                                    'Invalid PSBT magic bytes'):
+                                    'Invalid partially-signed transaction header'):
             deserialize('0200000001268171371edff285e937adeea4b37b78000c0566cbb3ad64641713ca42171bf6000000006a473044022070b2245123e6bf474d60c5b50c043d4c691a5d2435f09a34a7662a9dc251790a022001329ca9dacf280bdf30740ec0390422422c81cb45839457aeb76fc12edd95b3012102657d118d3357b8e0f4c2cd46db7b39f6d9c38d9a70abcb9b2de5dc8dbfe4ce31feffffff02d3dff505000000001976a914d0c59903c5bac2868760e90fd521a4665aa7652088ac00e1f5050000000017a9143545e6e33b832c47050f24d3eeb93c9c03948bc787b32e1300')
 
         # PSBT missing outputs
@@ -676,7 +676,7 @@ class Test_PSBT(unittest.TestCase):
         def get_input_key_types(psbt_bytes: bytes) -> Set[PSBT_InKeyType]:
             f = BytesIO(psbt_bytes)
             magic = ser_read(f, 5)
-            assert magic == PSBT_MAGIC_HEADER_BYTES
+            assert magic == CoreCoinParams.PSBT_MAGIC_HEADER_BYTES
             unsigned_tx = None
             keys_seen: Set[bytes] = set()
             for key_type, key_data, value in \

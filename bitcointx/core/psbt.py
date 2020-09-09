@@ -20,15 +20,19 @@ import base64
 import struct
 from enum import Enum
 from collections import OrderedDict
+from abc import abstractmethod
 
 from .serialize import (
     BytesSerializer, VarIntSerializer, ByteStream_Type, SerializationError,
     SerializationTruncationError, ser_read, Serializable, ImmutableSerializable
 )
+
+import bitcointx.core
+
 from . import (
     CTransaction, CTxIn, CTxOut, CTxInWitness, CTxWitness, b2x,
     CMutableTxIn, CMutableTxOut, CheckTransaction, MoneyRange,
-    CheckTransactionError
+    CheckTransactionError, CoreCoinParams
 )
 from .key import CPubKey, BIP32Path, KeyDerivationInfo, KeyStore
 from .script import (
@@ -39,10 +43,41 @@ from .script import (
 )
 from ..wallet import CCoinExtPubKey
 
-from ..util import ensure_isinstance, no_bool_use_as_property
+from ..util import (
+    ensure_isinstance, no_bool_use_as_property,
+    ClassMappingDispatcher, activate_class_dispatcher
+)
 
-PSBT_MAGIC_HEADER_BYTES = b'psbt\xff'
-PSBT_MAGIC_HEADER_BASE64 = 'cHNidP'
+
+class PSBT_CoinClassDispatcher(
+    ClassMappingDispatcher, identity='psbt',
+    depends=[bitcointx.core.CoreCoinClassDispatcher]
+):
+    ...
+
+
+class PSBT_CoinClass(Serializable, metaclass=PSBT_CoinClassDispatcher):
+    ...
+
+
+class PSBT_BitcoinClassDispatcher(
+    PSBT_CoinClassDispatcher,
+    depends=[bitcointx.core.CoreBitcoinClassDispatcher]
+):
+    ...
+
+
+class PSBT_BitcoinClass(PSBT_CoinClass, metaclass=PSBT_BitcoinClassDispatcher):
+
+    @abstractmethod
+    def _repr_dict(self) -> 'OrderedDict[str, str]':
+        ...
+
+    def __repr__(self) -> str:
+        contents = ', '.join(f'{k}={v}' for k, v in self._repr_dict().items())
+        return f"{self.__class__.__name__}({contents})"
+
+
 PSBT_SEPARATOR = b'\x00'
 
 PSBT_PROPRIETARY_TYPE = 0xFC
@@ -354,7 +389,7 @@ class PSBT_KeyDerivationInfo(ImmutableSerializable, KeyDerivationInfo):
 T_PSBT_Input = TypeVar('T_PSBT_Input', bound='PSBT_Input')
 
 
-class PSBT_Input(Serializable):
+class PSBT_Input(PSBT_CoinClass, next_dispatch_final=True):
     index: Optional[int]
     _utxo: Optional[Union[CTransaction, CTxOut]]
     _witness_utxo: Optional[CTxOut]
@@ -1373,31 +1408,35 @@ class PSBT_Input(Serializable):
 
         return self.utxo.vout[prevout_index].nValue
 
-    def __repr__(self) -> str:
+    def _repr_dict(self) -> 'OrderedDict[str, str]':
         partial_sigs = (', '.join(f"x('{b2x(k)}'): x('{b2x(v)}')"
                                   for k, v in self.partial_sigs.items()))
-        return (
-            f"{self.__class__.__name__}(utxo={self.utxo}, "
-            f"partial_sigs={{{partial_sigs}}}, "
-            f"sighash_type={self.sighash_type}, "
-            f"redeem_script={repr(self.redeem_script)}, "
-            f"witness_script={repr(self.witness_script)}, "
-            f"derivation_map={{{derivation_map_repr(self.derivation_map)}}}, "
-            f"final_script_sig=x('{b2x(self.final_script_sig)}'), "
-            f"final_script_witness={repr(self.final_script_witness)}, "
-            f"proof_of_reserves_commitment="
-            f"x('{b2x(self.proof_of_reserves_commitment)}'), "
-            f"proprietary_fields="
-            f"{{{proprietary_field_repr(self.proprietary_fields)}}}, "
-            f"unknown_fields=[{unknown_fields_repr(self.unknown_fields)}]"
-            f")"
-        )
+        return OrderedDict({
+            'utxo': f'{self.utxo}',
+            'partial_sigs': f'{{{partial_sigs}}}',
+            'sighash_type': f'{self.sighash_type}',
+            'redeem_script': repr(self.redeem_script),
+            'witness_script': repr(self.witness_script),
+            'derivation_map':
+                f'{{{derivation_map_repr(self.derivation_map)}}}',
+            'final_script_sig': f"x('{b2x(self.final_script_sig)}')",
+            'final_script_witness': repr(self.final_script_witness),
+            'proof_of_reserves_commitment':
+                f"x('{b2x(self.proof_of_reserves_commitment)}')",
+            'proprietary_fields':
+                f"{{{proprietary_field_repr(self.proprietary_fields)}}}",
+            'unknown_fields': f'[{unknown_fields_repr(self.unknown_fields)}]'
+        })
+
+
+class PSBT_BitcoinInput(PSBT_Input, PSBT_BitcoinClass):
+    ...
 
 
 T_PSBT_Output = TypeVar('T_PSBT_Output', bound='PSBT_Output')
 
 
-class PSBT_Output(Serializable):
+class PSBT_Output(PSBT_CoinClass, next_dispatch_final=True):
     index: Optional[int]
     redeem_script: CScript
     witness_script: CScript
@@ -1647,24 +1686,27 @@ class PSBT_Output(Serializable):
 
         f.write(PSBT_SEPARATOR)
 
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"redeem_script={self.redeem_script!r}, "
-            f"witness_script={self.witness_script!r}, "
-            f"derivation_map={{{derivation_map_repr(self.derivation_map)}}}, "
-            f"proprietary_fields="
-            f"{{{proprietary_field_repr(self.proprietary_fields)}}}, "
-            f"unknown_fields=[{unknown_fields_repr(self.unknown_fields)}]"
-            f")"
-        )
+    def _repr_dict(self) -> 'OrderedDict[str, str]':
+        return OrderedDict({
+            'redeem_script': repr(self.redeem_script),
+            'witness_script': repr(self.witness_script),
+            'derivation_map':
+                f'{{{derivation_map_repr(self.derivation_map)}}}',
+            'proprietary_fields':
+                f"{{{proprietary_field_repr(self.proprietary_fields)}}}",
+            'unknown_fields': f"[{unknown_fields_repr(self.unknown_fields)}]"
+        })
+
+
+class PSBT_BitcoinOutput(PSBT_Output, PSBT_BitcoinClass):
+    ...
 
 
 T_PartiallySignedTransaction = TypeVar('T_PartiallySignedTransaction',
                                        bound='PartiallySignedTransaction')
 
 
-class PartiallySignedTransaction(Serializable):
+class PartiallySignedTransaction(PSBT_CoinClass, next_dispatch_final=True):
     version: int
     inputs: List[PSBT_Input]
     outputs: List[PSBT_Output]
@@ -1991,8 +2033,8 @@ class PartiallySignedTransaction(Serializable):
         validate: bool = True, **kwargs: Any
     ) -> T_PartiallySignedTransaction:
         if isinstance(data, str):
-            if data[:len(PSBT_MAGIC_HEADER_BASE64)] != \
-                    PSBT_MAGIC_HEADER_BASE64:
+            if data[:len(CoreCoinParams.PSBT_MAGIC_HEADER_BASE64)] != \
+                    CoreCoinParams.PSBT_MAGIC_HEADER_BASE64:
                 raise ValueError(
                     'got data of type str, but magic bytes at the start '
                     'do not match base64-encoded PSBT magic bytes')
@@ -2002,9 +2044,10 @@ class PartiallySignedTransaction(Serializable):
         else:
             raise TypeError('type of data is not str or bytes')
 
-        if data_b.startswith(PSBT_MAGIC_HEADER_BYTES):
+        if data_b.startswith(CoreCoinParams.PSBT_MAGIC_HEADER_BYTES):
             return cls.from_binary(bytes(data_b), **kwargs)
-        elif data_b.startswith(PSBT_MAGIC_HEADER_BASE64.encode('ascii')):
+        elif data_b.startswith(CoreCoinParams.PSBT_MAGIC_HEADER_BASE64
+                               .encode('ascii')):
             return cls.deserialize(base64.b64decode(data_b.decode('ascii'),
                                                     validate=validate),
                                    **kwargs)
@@ -2046,8 +2089,9 @@ class PartiallySignedTransaction(Serializable):
                            **kwargs: Any) -> T_PartiallySignedTransaction:
 
         magic = ser_read(f, 5)
-        if magic != PSBT_MAGIC_HEADER_BYTES:
-            raise SerializationError('Invalid PSBT magic bytes')
+        if magic != CoreCoinParams.PSBT_MAGIC_HEADER_BYTES:
+            raise SerializationError(
+                'Invalid partially-signed transaction header')
 
         proprietary_fields: Dict[bytes, List[PSBT_ProprietaryTypeData]] = \
             OrderedDict()
@@ -2127,7 +2171,7 @@ class PartiallySignedTransaction(Serializable):
         if not relaxed_sanity_checks:
             self._check_sanity()
 
-        f.write(PSBT_MAGIC_HEADER_BYTES)
+        f.write(CoreCoinParams.PSBT_MAGIC_HEADER_BYTES)
 
         stream_serialize_field(
             PSBT_GlobalKeyType.UNSIGNED_TX, f,
@@ -2240,25 +2284,31 @@ class PartiallySignedTransaction(Serializable):
                              f'sum of output amounts {outputs_sum}')
         return fee
 
-    def __repr__(self) -> str:
+    def _repr_dict(self) -> 'OrderedDict[str, str]':
         xpubs = (
             ', '.join(
                 f"'{str(k)}': (x('{b2x(v.master_fp)}'), \"{str(v.path)}\")"
                 for k, v in self.xpubs.items()))
 
-        return (
-            f"{self.__class__.__name__}("
-            f"version={self.version}, "
-            f"inputs={self.inputs}, "
-            f"outputs={self.outputs}, "
-            f"unsigned_tx={self.unsigned_tx}, "
-            f"xpubs={{{xpubs}}}, "
-            f"proprietary_fields="
-            f"{{{proprietary_field_repr(self.proprietary_fields)}}}, "
-            f"unknown_fields=[{unknown_fields_repr(self.unknown_fields)}]"
-            f")"
-        )
+        return OrderedDict({
+            'version': f'{self.version}',
+            'inputs': repr(self.inputs),
+            'outputs': repr(self.outputs),
+            'unsigned_tx': repr(self.unsigned_tx),
+            'xpubs': f'{{{xpubs}}}',
+            'proprietary_fields':
+                f"{{{proprietary_field_repr(self.proprietary_fields)}}}",
+            'unknown_fields': f"[{unknown_fields_repr(self.unknown_fields)}]"
+        })
 
+
+class PartiallySignedBitcoinTransaction(PartiallySignedTransaction,
+                                        PSBT_BitcoinClass):
+    ...
+
+
+# default dispatcher for the module
+activate_class_dispatcher(PSBT_BitcoinClassDispatcher)
 
 __all__ = (
     'PartiallySignedTransaction',

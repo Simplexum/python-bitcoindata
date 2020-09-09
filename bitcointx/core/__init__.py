@@ -218,7 +218,8 @@ class CoreCoinParams(CoreCoinClass, next_dispatch_final=True):
 
 
 class CoreBitcoinParams(CoreCoinParams, CoreBitcoinClass):
-    ...
+    PSBT_MAGIC_HEADER_BYTES = b'psbt\xff'
+    PSBT_MAGIC_HEADER_BASE64 = 'cHNidP'
 
 
 def MoneyRange(nValue: int) -> bool:
