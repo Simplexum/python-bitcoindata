@@ -805,8 +805,12 @@ class CTxInWitness(CoreCoinClass, next_dispatch_final=True):
     to_mutable: Callable[['CTxInWitness'], 'CMutableTxInWitness']
     to_immutable: Callable[['CTxInWitness'], 'CTxInWitness']
 
-    def __init__(self, scriptWitness: script.CScriptWitness = script.CScriptWitness()):
-        ensure_isinstance(scriptWitness, script.CScriptWitness, 'scriptWitness')
+    def __init__(self, scriptWitness: Optional[script.CScriptWitness] = None):
+        if scriptWitness is None:
+            scriptWitness = script.CScriptWitness()
+        else:
+            ensure_isinstance(scriptWitness, script.CScriptWitness, 'scriptWitness')
+
         object.__setattr__(self, 'scriptWitness', scriptWitness)
 
     @no_bool_use_as_property

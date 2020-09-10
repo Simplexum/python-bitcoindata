@@ -376,11 +376,11 @@ class PSBT_Input(Serializable):
         utxo: Optional[Union[CTransaction, CTxOut]] = None,
         partial_sigs: Optional[Dict[CPubKey, bytes]] = None,
         sighash_type: Optional[int] = None,
-        redeem_script: CScript = CScript(),
-        witness_script: CScript = CScript(),
+        redeem_script: Optional[CScript] = None,
+        witness_script: Optional[CScript] = None,
         derivation_map: Optional[Dict[CPubKey, PSBT_KeyDerivationInfo]] = None,
         final_script_sig: bytes = b'',
-        final_script_witness: CScriptWitness = CScriptWitness(),
+        final_script_witness: Optional[CScriptWitness] = None,
         proof_of_reserves_commitment: bytes = b'',
         proprietary_fields: Optional[Dict[
             bytes, List[PSBT_ProprietaryTypeData]
@@ -438,10 +438,18 @@ class PSBT_Input(Serializable):
 
         self.sighash_type = sighash_type
 
-        ensure_isinstance(redeem_script, CScript, descr('redeem script'))
+        if redeem_script is None:
+            redeem_script = CScript()
+        else:
+            ensure_isinstance(redeem_script, CScript, descr('redeem script'))
+
         self.redeem_script = redeem_script
 
-        ensure_isinstance(witness_script, CScript, descr('witness script'))
+        if witness_script is None:
+            witness_script = CScript()
+        else:
+            ensure_isinstance(witness_script, CScript, descr('witness script'))
+
         self.witness_script = witness_script
 
         if derivation_map is None:
@@ -459,8 +467,12 @@ class PSBT_Input(Serializable):
         ensure_isinstance(final_script_sig, bytes, descr('final script sig'))
         self.final_script_sig = final_script_sig
 
-        ensure_isinstance(final_script_witness, CScriptWitness,
-                          descr('final script witness'))
+        if final_script_witness is None:
+            final_script_witness = CScriptWitness()
+        else:
+            ensure_isinstance(final_script_witness, CScriptWitness,
+                              descr('final script witness'))
+
         self.final_script_witness = final_script_witness
 
         ensure_isinstance(proof_of_reserves_commitment,
@@ -1396,8 +1408,8 @@ class PSBT_Output(Serializable):
 
     def __init__(
         self, *,
-        redeem_script: CScript = CScript(),
-        witness_script: CScript = CScript(),
+        redeem_script: Optional[CScript] = None,
+        witness_script: Optional[CScript] = None,
         derivation_map: Optional[Dict[CPubKey, PSBT_KeyDerivationInfo]] = None,
         proprietary_fields: Optional[Dict[
             bytes, List[PSBT_ProprietaryTypeData]
@@ -1416,10 +1428,18 @@ class PSBT_Output(Serializable):
 
         self.index = index
 
-        ensure_isinstance(redeem_script, CScript, descr('redeem script'))
+        if redeem_script is None:
+            redeem_script = CScript()
+        else:
+            ensure_isinstance(redeem_script, CScript, descr('redeem script'))
+
         self.redeem_script = redeem_script
 
-        ensure_isinstance(witness_script, CScript, descr('witness script'))
+        if witness_script is None:
+            witness_script = CScript()
+        else:
+            ensure_isinstance(witness_script, CScript, descr('witness script'))
+
         self.witness_script = witness_script
 
         if derivation_map is None:
@@ -1658,7 +1678,7 @@ class PartiallySignedTransaction(Serializable):
                  version: int = 0,
                  inputs: Optional[List[PSBT_Input]] = None,
                  outputs: Optional[List[PSBT_Output]] = None,
-                 unsigned_tx: CTransaction = CTransaction(),
+                 unsigned_tx: Optional[CTransaction] = None,
                  xpubs: Optional[Dict[
                      CCoinExtPubKey, PSBT_KeyDerivationInfo
                  ]] = None,
@@ -1674,7 +1694,10 @@ class PartiallySignedTransaction(Serializable):
             raise ValueError('Unsupported PSBT version')
         self.version = version
 
-        ensure_isinstance(unsigned_tx, CTransaction, 'unsigned_tx')
+        if unsigned_tx is None:
+            unsigned_tx = CTransaction()
+        else:
+            ensure_isinstance(unsigned_tx, CTransaction, 'unsigned_tx')
 
         if inputs is None:
             num_inputs = len(unsigned_tx.vin)
