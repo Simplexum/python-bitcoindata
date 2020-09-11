@@ -14,7 +14,7 @@
 # NOTE: for simplicity, when we need to pass an array of structs to secp256k1
 # function, we will build an array of bytes out of elements, and then pass
 # this array. we are dealing with 32 or 64-byte aligned data,
-# so this should be safe. You can use build_aligned_data_array() for this.
+# so this should be safe.
 
 # NOTE: special care should be taken with functions that may write to parts
 # of their arguments, like secp256k1_pedersen_blind_generator_blind_sum,
