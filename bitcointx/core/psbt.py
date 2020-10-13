@@ -1979,10 +1979,9 @@ class PartiallySignedTransaction(Serializable):
         else:
             raise TypeError('type of data is not str or bytes')
 
-        if data_b[:len(PSBT_MAGIC_HEADER_BYTES)] == PSBT_MAGIC_HEADER_BYTES:
+        if data_b.startswith(PSBT_MAGIC_HEADER_BYTES):
             return cls.from_binary(bytes(data_b), **kwargs)
-        elif (data_b[:len(PSBT_MAGIC_HEADER_BASE64)] ==
-              PSBT_MAGIC_HEADER_BASE64.encode('ascii')):
+        elif data_b.startswith(PSBT_MAGIC_HEADER_BASE64.encode('ascii')):
             return cls.deserialize(base64.b64decode(data_b.decode('ascii'),
                                                     validate=validate),
                                    **kwargs)

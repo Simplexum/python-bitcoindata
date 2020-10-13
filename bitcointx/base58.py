@@ -162,7 +162,7 @@ class CBase58Data(bytes):
                     return candidate.base58_from_bytes_match_prefix(data)
                 except UnexpectedBase58PrefixError:
                     pass
-            elif data[:len(pfx)] == pfx:
+            elif data.startswith(pfx):
                 return candidate.from_bytes(data[len(pfx):])
 
         if len(candidates) == 1:
