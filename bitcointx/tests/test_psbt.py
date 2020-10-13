@@ -679,20 +679,20 @@ class Test_PSBT(unittest.TestCase):
             assert magic == CoreCoinParams.PSBT_MAGIC_HEADER_BYTES
             unsigned_tx = None
             keys_seen: Set[bytes] = set()
-            for key_type, key_data, value in \
+            for key_type_g, key_data, value in \
                     read_psbt_keymap(f, keys_seen, PSBT_GlobalKeyType,
                                      OrderedDict(), list()):
-                if key_type == PSBT_GlobalKeyType.UNSIGNED_TX:
+                if key_type_g == PSBT_GlobalKeyType.UNSIGNED_TX:
                     unsigned_tx = CTransaction.deserialize(value)
             assert unsigned_tx
             keys_seen = set()
             key_types_seen: Set[PSBT_InKeyType] = set()
             assert len(unsigned_tx.vin) == 1
-            for key_type, key_data, value in \
+            for key_type_in, key_data, value in \
                     read_psbt_keymap(f, keys_seen, PSBT_InKeyType,
                                      OrderedDict(), list()):
-                assert isinstance(key_type, PSBT_InKeyType)
-                key_types_seen.add(key_type)
+                assert isinstance(key_type_in, PSBT_InKeyType)
+                key_types_seen.add(key_type_in)
 
             return key_types_seen
 

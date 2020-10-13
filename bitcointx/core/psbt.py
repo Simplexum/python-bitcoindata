@@ -44,7 +44,7 @@ from .script import (
 from ..wallet import CCoinExtPubKey
 
 from ..util import (
-    ensure_isinstance, no_bool_use_as_property,
+    ensure_isinstance, no_bool_use_as_property, assert_never,
     ClassMappingDispatcher, activate_class_dispatcher
 )
 
@@ -135,13 +135,8 @@ PSBT_UnknownTypeData = NamedTuple(
         ('key_type', int), ('key_data', bytes), ('value', bytes)
     ])
 
-T_KeyTypeEnum_Type = Union[
-    Type[PSBT_GlobalKeyType],
-    Type[PSBT_OutKeyType],
-    Type[PSBT_InKeyType],
-]
-
-T_KeyTypeEnum = Union[PSBT_GlobalKeyType, PSBT_OutKeyType, PSBT_InKeyType]
+T_KeyTypeEnum = TypeVar(
+    'T_KeyTypeEnum', PSBT_GlobalKeyType, PSBT_OutKeyType, PSBT_InKeyType)
 
 
 def proprietary_field_repr(
@@ -296,7 +291,7 @@ def merge_unknown_fields(
 def read_psbt_keymap(
     f: ByteStream_Type,
     keys_seen: Set[bytes],
-    keys_enum_class: T_KeyTypeEnum_Type,
+    keys_enum_class: Type[T_KeyTypeEnum],
     proprietary_fields: Dict[bytes, List[PSBT_ProprietaryTypeData]],
     unknown_fields: List[PSBT_UnknownTypeData]
 ) -> Generator[Tuple[T_KeyTypeEnum, bytes, bytes], None, None]:
@@ -1293,10 +1288,7 @@ class PSBT_Input(PSBT_CoinClass, next_dispatch_final=True):
                 ensure_empty_key_data(key_type, key_data, descr(''))
                 proof_of_reserves_commitment = value
             else:
-                raise AssertionError(
-                    f'If key type {key_type} is recognized, '
-                    f'it must be handled, and this statement '
-                    f'should not be reached.')
+                assert_never(key_type)
 
         # non_witness_utxo is preferred over witness_utxo for `utxo` kwarg
         # because non_witness_utxo is a full transaction,
@@ -1644,13 +1636,13 @@ class PSBT_Output(PSBT_CoinClass, next_dispatch_final=True):
                 read_psbt_keymap(f, keys_seen, PSBT_OutKeyType,
                                  proprietary_fields, unknown_fields):
 
-            if key_type == PSBT_OutKeyType.REDEEM_SCRIPT:
+            if key_type is PSBT_OutKeyType.REDEEM_SCRIPT:
                 ensure_empty_key_data(key_type, key_data, descr(''))
                 redeem_script = CScript(value)
-            elif key_type == PSBT_OutKeyType.WITNESS_SCRIPT:
+            elif key_type is PSBT_OutKeyType.WITNESS_SCRIPT:
                 ensure_empty_key_data(key_type, key_data, descr(''))
                 witness_script = CScript(value)
-            elif key_type == PSBT_OutKeyType.BIP32_DERIVATION:
+            elif key_type is PSBT_OutKeyType.BIP32_DERIVATION:
                 pub = CPubKey(key_data)
                 if not pub.is_fullyvalid():
                     raise SerializationError(
@@ -1660,6 +1652,8 @@ class PSBT_Output(PSBT_CoinClass, next_dispatch_final=True):
                     ("duplicate keys should have been catched "
                      "inside read_psbt_keymap()")
                 derivation_map[pub] = PSBT_KeyDerivationInfo.deserialize(value)
+            else:
+                assert_never(key_type)
 
         return cls(redeem_script=redeem_script, witness_script=witness_script,
                    derivation_map=derivation_map,
@@ -2105,10 +2099,10 @@ class PartiallySignedTransaction(PSBT_CoinClass, next_dispatch_final=True):
                 read_psbt_keymap(f, keys_seen, PSBT_GlobalKeyType,
                                  proprietary_fields, unknown_fields):
 
-            if key_type == PSBT_GlobalKeyType.UNSIGNED_TX:
+            if key_type is PSBT_GlobalKeyType.UNSIGNED_TX:
                 ensure_empty_key_data(key_type, key_data)
                 unsigned_tx = CTransaction.deserialize(value)
-            elif key_type == PSBT_GlobalKeyType.XPUB:
+            elif key_type is PSBT_GlobalKeyType.XPUB:
                 if key_data[:4] != CCoinExtPubKey.base58_prefix:
                     raise ValueError(
                         f'One of global xpubs has unknown prefix: expected '
@@ -2119,17 +2113,14 @@ class PartiallySignedTransaction(PSBT_CoinClass, next_dispatch_final=True):
                     ("duplicate keys should have been catched "
                      "inside read_psbt_keymap()")
                 xpubs[xpub] = PSBT_KeyDerivationInfo.deserialize(value)
-            elif key_type == PSBT_GlobalKeyType.VERSION:
+            elif key_type is PSBT_GlobalKeyType.VERSION:
                 ensure_empty_key_data(key_type, key_data)
                 if len(value) != 4:
                     raise SerializationError(
                         f'Incorrect data length for {key_type.name}')
                 version = struct.unpack(b'<I', value)[0]
             else:
-                raise AssertionError(
-                    f'If key type {key_type} is present in PSBT_GLOBAL_KEYS, '
-                    f'it must be handled, and this statement '
-                    f'should not be reached.')
+                assert_never(key_type)
 
         if unsigned_tx is None:
             raise ValueError(

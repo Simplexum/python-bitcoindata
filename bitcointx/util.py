@@ -19,11 +19,12 @@ except ImportError:
     has_contextvars = False
 
 import functools
+from enum import Enum
 from types import FunctionType
 from abc import ABCMeta, ABC, abstractmethod
 from typing import (
     Type, Set, Tuple, List, Dict, Union, Any, Callable, Iterable, Optional,
-    TypeVar, Generic, cast
+    TypeVar, Generic, cast, NoReturn
 )
 
 _secp256k1_library_path: Optional[str] = None
@@ -471,6 +472,28 @@ def ensure_isinstance(var: object,
         raise TypeError(msg)
 
 
+def assert_never(x: NoReturn) -> NoReturn:
+    """For use with static checking. The checker such as mypy will raise
+    error if the statement `assert_never(...)` is reached. At runtime,
+    an `AssertionError` will be raised.
+    Useful to ensure that all variants of Enum is handled.
+    Might become useful in other ways, and because of this, the message
+    for `AssertionError` at runtime can differ on actual type of the argument.
+    For full control of the message, just pass a string as the argument.
+    """
+
+    if isinstance(x, Enum):
+        msg = f'Enum {x} is not handled'
+    elif isinstance(x, str):
+        msg = x
+    elif isinstance(x, type):
+        msg = f'{x.__name__} is not handled'
+    else:
+        msg = f'{x.__class__.__name__} is not handled'
+
+    raise AssertionError(msg)
+
+
 class ReadOnlyFieldGuard(ABC):
     """A unique class that is used as a guard type for ReadOnlyField.
     It cannot be instantiated at runtime, and the static check will also
@@ -604,6 +627,7 @@ __all__ = (
     'ClassMappingDispatcher',
     'classgetter',
     'ensure_isinstance',
+    'assert_never',
     'ReadOnlyField',
     'WriteableField',
     'ContextVarsCompat',
