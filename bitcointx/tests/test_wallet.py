@@ -48,7 +48,7 @@ from bitcointx.wallet import (
 )
 
 
-def test_address_implementations(
+def _test_address_implementations(
     test: unittest.TestCase,
     paramclasses: Optional[Iterable[type]] = None,
     extra_addr_testfunc: Callable[..., bool] = lambda *args: False
@@ -95,7 +95,7 @@ def test_address_implementations(
 class Test_CCoinAddress(unittest.TestCase):
 
     def test_address_implementations(self) -> None:
-        test_address_implementations(self)
+        _test_address_implementations(self)
 
     def test_get_output_size(self) -> None:
         pub = CPubKey(x('0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71'))
