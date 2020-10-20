@@ -12,7 +12,7 @@
 # pylama:ignore=E501
 
 import unittest
-import logging
+import warnings
 
 from bitcointx.core.key import CKey, CPubKey
 from bitcointx.core import x
@@ -101,11 +101,9 @@ class Test_CKey(unittest.TestCase):
                 CPubKey.combine(k1.pub, k2.pub,
                                 k1.pub.negated(), k2.pub.negated())
         else:
-            logging.basicConfig()
-            log = logging.getLogger("Test_CKey")
-            log.warning('secp256k1 does not export pubkey negation function. '
-                        'You should use newer version of secp256k1 library. '
-                        'Tests that involve key substraction are skipped')
+            warnings.warn('secp256k1 does not export pubkey negation function. '
+                          'You should use newer version of secp256k1 library. '
+                          'Tests that involve key substraction are skipped')
 
     def test_invalid_key(self) -> None:
         with self.assertRaises(ValueError):

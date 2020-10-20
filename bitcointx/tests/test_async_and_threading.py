@@ -12,7 +12,7 @@
 # pylama:ignore=E501,C901
 
 import unittest
-import logging
+import warnings
 import threading
 import asyncio
 import ctypes
@@ -177,9 +177,7 @@ class Test_Threading(unittest.TestCase):
                               BitcoinMainnetParams)
 
         if issubclass(ContextVarsCompat, threading.local):
-            logging.basicConfig()
-            log = logging.getLogger("Test_Threading")
-            log.warning(
+            warnings.warn(
                 'contextvars.ContextVar is unavailable, asyncio contexts '
                 'when switching chain params will be broken. '
                 'Use python >= 3.7 if you want asyncio compatibility, or '

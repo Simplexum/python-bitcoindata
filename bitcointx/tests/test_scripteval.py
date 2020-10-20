@@ -15,7 +15,7 @@
 import json
 import os
 import unittest
-import logging
+import warnings
 import ctypes
 
 from typing import List, Iterator, Tuple, Set, Optional
@@ -77,8 +77,6 @@ def load_test_vectors(
     Tuple[CScript, CScript, CScriptWitness, int, Set[ScriptVerifyFlag_Type],
           str, str, str]
 ]:
-    logging.basicConfig()
-    log = logging.getLogger("Test_EvalScript")
     with open(os.path.dirname(__file__) + '/data/' + name, 'r') as fd:
         fixme_comment = None
         num_skipped = 0
@@ -95,8 +93,8 @@ def load_test_vectors(
                     fixme_comment = test_case[1]
                     continue
                 if test_case[0] == 'FIXME_END':
-                    log.warning("SKIPPED {} tests: {}"
-                                .format(num_skipped, fixme_comment))
+                    warnings.warn("SKIPPED {} tests: {}"
+                                  .format(num_skipped, fixme_comment))
                     fixme_comment = None
                     num_skipped = 0
                     continue
@@ -180,9 +178,7 @@ class Test_EvalScript(unittest.TestCase):
         try:
             handle = load_bitcoinconsensus_library()
         except ImportError:
-            logging.basicConfig()
-            log = logging.getLogger("Test_EvalScript")
-            log.warning("libbitcoinconsensus library is not avaliable, not testing bitcoinconsensus module")
+            warnings.warn("libbitcoinconsensus library is not avaliable, not testing bitcoinconsensus module")
             return
 
         def do_test_bicoinconsensus(handle: Optional[ctypes.CDLL]) -> None:
