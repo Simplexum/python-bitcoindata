@@ -301,8 +301,9 @@ def read_psbt_keymap(
             return
 
         if key_data in keys_seen:
+            tellf = getattr(f, 'tell', lambda: '<untracked>')
             raise SerializationError(
-                f'Duplicate key encountered at position {f.tell()}')
+                f'Duplicate key encountered at position {tellf()}')
 
         keys_seen.add(key_data)
 
