@@ -1104,21 +1104,35 @@ class CTransaction(ReprOrStrMixin, CoreCoinClass, next_dispatch_final=True):
         inputs. If the behavior of DecodeHexTx() is needed it could be added,
         but not here.
         """
-        # FIXME can't assume f is seekable
         nVersion = struct.unpack(b"<i", ser_read(f, 4))[0]
-        pos = f.tell()
-        markerbyte = struct.unpack(b'B', ser_read(f, 1))[0]
-        flagbyte = struct.unpack(b'B', ser_read(f, 1))[0]
 
-        if markerbyte == 0:
-            if flagbyte != 1:
-                raise ValueError(
-                    f'unexpected flag value {flagbyte} after segwit marker, '
-                    f'expected 1')
-            vin = VectorSerializer.stream_deserialize(f, element_class=CTxIn,
-                                                      **kwargs)
-            vout = VectorSerializer.stream_deserialize(f, element_class=CTxOut,
-                                                       **kwargs)
+        # Try to read the vin.
+        # In case the dummy is there, this will be read as an empty vector.
+        vin = VectorSerializer.stream_deserialize(
+            f, element_class=CTxIn, **kwargs)
+
+        flags = 0
+
+        if not vin:
+            # We read a dummy or an empty vin
+            flags = struct.unpack(b'B', ser_read(f, 1))[0]
+            if flags != 0:
+                vin = VectorSerializer.stream_deserialize(
+                    f, element_class=CTxIn, **kwargs)
+                vout = VectorSerializer.stream_deserialize(
+                    f, element_class=CTxOut, **kwargs)
+        else:
+            # We read a non-empty vin. Assume a normal vout follows.
+            vout = VectorSerializer.stream_deserialize(
+                f, element_class=CTxOut, **kwargs)
+
+        wit = None
+
+        if flags & 1:
+            # The witness flag is present,
+            # and we unconditionally support witnesses (see docstring)
+            flags ^= 1
+
             wit = CTxWitness.stream_deserialize(f, num_inputs=len(vin),
                                                 **kwargs)
             if wit.is_null():
@@ -1126,16 +1140,13 @@ class CTransaction(ReprOrStrMixin, CoreCoinClass, next_dispatch_final=True):
                 # when all witness stacks are empty.
                 raise ValueError('Superfluous witness record')
 
-            nLockTime = struct.unpack(b"<I", ser_read(f, 4))[0]
-            return cls(vin, vout, nLockTime, nVersion, wit)
+        if flags:
+            # Unknown flag in the serialization
+            raise ValueError('Unknown transaction optional data')
 
-        f.seek(pos)  # put marker byte back, since we don't have peek
-        vin = VectorSerializer.stream_deserialize(f, element_class=CTxIn,
-                                                  **kwargs)
-        vout = VectorSerializer.stream_deserialize(f, element_class=CTxOut,
-                                                   **kwargs)
         nLockTime = struct.unpack(b"<I", ser_read(f, 4))[0]
-        return cls(vin, vout, nLockTime, nVersion)
+
+        return cls(vin, vout, nLockTime, nVersion, wit)
 
     # NOTE: for_sighash is ignored, but may be used in other implementations
     def stream_serialize(self, f: ByteStream_Type,
