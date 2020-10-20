@@ -1024,13 +1024,18 @@ class CTransaction(ReprOrStrMixin, CoreCoinClass, next_dispatch_final=True):
         else:
             ensure_isinstance(nVersion, int, 'nVersion')
 
-        if witness is None or witness.is_null():
-            if witness is None and self.is_immutable():
-                witness = CTxWitness()
+        if witness is None or (witness.is_null() and self.is_mutable()):
+            if self.is_mutable():
+                new_witness = CTxWitness([CTxInWitness() for dummy in vin],
+                                         [CTxOutWitness() for dummy in vout])
+                if witness is not None:
+                    ensure_isinstance(witness, new_witness._immutable_cls,
+                                      'witness')
+                witness = new_witness
             else:
-                witness = CTxWitness(
-                    [CTxInWitness() for dummy in vin],
-                    [CTxOutWitness() for dummy in vout])
+                assert witness is None
+                witness = CTxWitness()
+
         else:
             witness = CTxWitness.from_witness(witness)
 
