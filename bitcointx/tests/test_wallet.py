@@ -443,7 +443,8 @@ class Test_RFC6979(unittest.TestCase):
         ]
         for vector in test_vectors:
             secret = CBitcoinKey.from_secret_bytes(x('{:064x}'.format(vector[0])))
-            encoded_sig = secret.sign(hashlib.sha256(vector[1].encode('utf8')).digest())
+            encoded_sig = secret.sign(hashlib.sha256(vector[1].encode('utf8')).digest(),
+                                      _ecdsa_sig_grind_low_r=False)
 
             assert(encoded_sig[0] == 0x30)
             assert(encoded_sig[1] == len(encoded_sig)-2)

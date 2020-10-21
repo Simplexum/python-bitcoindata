@@ -13,6 +13,7 @@
 
 import unittest
 import warnings
+import hashlib
 
 from bitcointx.core.key import CKey, CPubKey
 from bitcointx.core import x
@@ -111,3 +112,40 @@ class Test_CKey(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             CKey(b'\xff'*32)
+
+    def test_signature_grind(self) -> None:
+        k = CKey(x('12b004fff7f4b69ef8650e767f18f11ede158148b425660723b9f9a66e61f747'))
+
+        msg = "A message to be signed"
+        msg_hash = hashlib.sha256(msg.encode('ascii')).digest()
+
+        # When explicit entropy is specified, we should see at least one
+        # high R signature within 20 signatures
+        high_r_found = False
+        for i in range(1, 21):
+            sig = k.sign(msg_hash,
+                         _ecdsa_sig_grind_low_r=False,
+                         _ecdsa_sig_extra_entropy=i)
+            if sig[3] == 0x21:
+                self.assertEqual(sig[4], 0x00)
+                high_r_found = True
+                break
+
+        self.assertTrue(high_r_found)
+
+        # When grinding for low-R, we should always see low R signatures
+        # that are less than 70 bytes in 256 tries
+        # We should see at least one signature that is less than 70 bytes.
+        small_sig_found = False
+        for i in range(256):
+            msg = "A message to be signed" + str(i)
+            msg_hash = hashlib.sha256(msg.encode('ascii')).digest()
+            sig = k.sign(msg_hash)
+
+            self.assertLessEqual(len(sig), 70)
+            self.assertLessEqual(sig[3], 0x20)
+
+            if len(sig) < 70:
+                small_sig_found = True
+
+        self.assertTrue(small_sig_found)

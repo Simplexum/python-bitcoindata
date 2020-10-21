@@ -108,6 +108,9 @@ def _add_function_definitions(_secp256k1: ctypes.CDLL) -> None:
         _secp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact.restype = ctypes.c_int
         _secp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.c_int), ctypes.c_char_p]
 
+        _secp256k1.secp256k1_ecdsa_signature_serialize_compact.restype = ctypes.c_int
+        _secp256k1.secp256k1_ecdsa_signature_serialize_compact.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+
         _secp256k1.secp256k1_ecdsa_recover.restype = ctypes.c_int
         _secp256k1.secp256k1_ecdsa_recover.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
 

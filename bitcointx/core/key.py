@@ -135,6 +135,23 @@ def load_openssl_library(path: Optional[str] = None) -> Optional[ctypes.CDLL]:
     return handle
 
 
+def _raw_sig_has_low_r(raw_sig: bytes) -> bool:
+    compact_sig = ctypes.create_string_buffer(64)
+    result = _secp256k1.secp256k1_ecdsa_signature_serialize_compact(
+        secp256k1_context_sign, compact_sig, raw_sig)
+    assert result == 1
+
+    # In DER serialization, all values are interpreted as big-endian,
+    # signed integers. The highest bit in the integer indicates
+    # its signed-ness; 0 is positive, 1 is negative.
+    # When the value is interpreted as a negative integer,
+    # it must be converted to a positive value by prepending a 0x00 byte
+    # so that the highest bit is 0. We can avoid this prepending by ensuring
+    # that our highest bit is always 0, and thus we must check that the
+    # first byte is less than 0x80.
+    return compact_sig.raw[0] < 0x80
+
+
 class CKeyBase:
     """An encapsulated private key
 
@@ -185,25 +202,53 @@ class CKeyBase:
     def pub(self) -> 'CPubKey':
         return self.__pub
 
-    def sign(self, hash: Union[bytes, bytearray]) -> bytes:
+    def sign(self, hash: Union[bytes, bytearray], *,
+             _ecdsa_sig_grind_low_r: bool = True,
+             _ecdsa_sig_extra_entropy: int = 0
+             ) -> bytes:
+
         ensure_isinstance(hash, (bytes, bytearray), 'hash')
         if len(hash) != 32:
             raise ValueError('Hash must be exactly 32 bytes long')
 
         raw_sig = ctypes.create_string_buffer(64)
-        result = _secp256k1.secp256k1_ecdsa_sign(
-            secp256k1_context_sign, raw_sig, hash, self.secret_bytes, None, None)
-        if 1 != result:
-            assert(result == 0)
-            raise RuntimeError('secp256k1_ecdsa_sign returned failure')
+
+        if _ecdsa_sig_grind_low_r:
+            counter = 0
+        else:
+            counter = _ecdsa_sig_extra_entropy
+
+        def maybe_extra_entropy() -> Optional[bytes]:
+            if counter == 0:
+                return None
+
+            # mimic Bitcoin Core that uses 32-bit counter for the entropy
+            assert counter < 2**32
+            return counter.to_bytes(4, byteorder="little") + b'\x00'*28
+
+        while True:
+            result = _secp256k1.secp256k1_ecdsa_sign(
+                secp256k1_context_sign, raw_sig, hash, self.secret_bytes, None,
+                maybe_extra_entropy())
+            if 1 != result:
+                assert(result == 0)
+                raise RuntimeError('secp256k1_ecdsa_sign returned failure')
+
+            if not _ecdsa_sig_grind_low_r or _raw_sig_has_low_r(raw_sig.raw):
+                break
+
+            counter += 1
+
         sig_size0 = ctypes.c_size_t()
         sig_size0.value = SIGNATURE_SIZE
-        mb_sig = ctypes.create_string_buffer(sig_size0.value)
+        mb_sig = ctypes.create_string_buffer(SIGNATURE_SIZE)
+
         result = _secp256k1.secp256k1_ecdsa_signature_serialize_der(
             secp256k1_context_sign, mb_sig, ctypes.byref(sig_size0), raw_sig)
         if 1 != result:
             assert(result == 0)
             raise RuntimeError('secp256k1_ecdsa_signature_parse_der returned failure')
+
         # secp256k1 creates signatures already in lower-S form, no further
         # conversion needed.
         return mb_sig.raw[:sig_size0.value]
